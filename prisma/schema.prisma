@@ -1,0 +1,246 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Get a free hosted Postgres database in seconds: `npx create-db`
+
+generator client {
+  provider     = "prisma-client"
+  output       = "../src/generated/prisma"
+  moduleFormat = "cjs"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum EstadoUsuario {
+  PENDIENTE
+  ACTIVO
+  SUSPENDIDO_MORA
+  INACTIVO
+}
+
+enum Rol {
+  ADMINISTRADOR
+  RECEPCIONISTA
+  PROFESOR
+  ESTUDIANTE
+}
+
+enum DiaSemana {
+  LUNES
+  MARTES
+  MIERCOLES
+  JUEVES
+  VIERNES
+}
+
+enum ConceptoPago {
+  MATRICULA
+  INSCRIPCION
+  MENSUALIDAD
+}
+
+enum EstadoPago {
+  PENDIENTE
+  APROBADO
+  RECHAZADO
+}
+
+enum MetodoPago {
+  EFECTIVO
+  TRANSFERENCIA
+  PASARELA_ONLINE
+}
+
+model Usuario {
+  id              Int           @id @default(autoincrement())
+  email           String        @unique
+  password        String        @map("password")
+  nombre          String
+  apellido        String
+  ci              String        @unique
+  fechaNacimiento DateTime      @map("fecha_nacimiento")
+  telefono        String?
+  estado          EstadoUsuario @default(PENDIENTE)
+  rol             Rol           @default(ESTUDIANTE)
+  creadoEn        DateTime      @default(now()) @map("creado_en")
+  actualizadoEn   DateTime      @updatedAt @map("actualizado_en")
+
+  perfilEstudiante     PerfilEstudiante?
+  perfilProfesor       PerfilProfesor?
+  pagosVerificados     Pago[]            @relation("PagosVerificados")
+  pagosEstudiante      Pago[]            @relation("PagosEstudiante")
+  auditoriasRealizadas Auditoria[]       @relation("UsuarioAuditor")
+
+  @@map("usuarios")
+}
+
+model PerfilEstudiante {
+  id              Int    @id @default(autoincrement())
+  usuarioId       Int    @unique @map("usuario_id")
+  codigoMatricula String @unique @map("codigo_matricula")
+  nombreTutor     String @map("nombre_tutor")
+  telefonoTutor   String @map("telefono_tutor")
+
+  usuario        Usuario        @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+  inscripciones  Inscripcion[]
+  entregasTareas EntregaTarea[]
+
+  @@map("perfiles_estudiantes")
+}
+
+model PerfilProfesor {
+  id                Int      @id @default(autoincrement())
+  usuarioId         Int      @unique @map("usuario_id")
+  especialidad      String
+  fechaContratacion DateTime @map("fecha_contratacion")
+
+  usuario Usuario @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+  grupos  Grupo[]
+
+  @@map("perfiles_profesores")
+}
+
+model PeriodoAcademico {
+  id             Int      @id @default(autoincrement())
+  nombre         String // Ej: "2026-I"
+  fechaInicio    DateTime @map("fecha_inicio")
+  fechaFin       DateTime @map("fecha_fin")
+  limiteCreditos Int      @map("limite_creditos")
+  activo         Boolean  @default(true)
+
+  grupos        Grupo[]
+  inscripciones Inscripcion[]
+
+  @@map("periodos_academicos")
+}
+
+model Materia {
+  id               Int     @id @default(autoincrement())
+  codigo           String  @unique
+  nombre           String
+  creditos         Int
+  costoInscripcion Decimal @map("costo_inscripcion") @db.Decimal(10, 2)
+  costoMensualidad Decimal @map("costo_mensualidad") @db.Decimal(10, 2)
+
+  grupos Grupo[]
+
+  @@map("materias")
+}
+
+model Grupo {
+  id         Int    @id @default(autoincrement())
+  materiaId  Int    @map("materia_id")
+  periodoId  Int    @map("periodo_id")
+  profesorId Int    @map("profesor_id")
+  nombre     String // Ej: "Grupo A"
+  cupoMaximo Int    @map("cupo_maximo")
+
+  materia             Materia              @relation(fields: [materiaId], references: [id])
+  periodo             PeriodoAcademico     @relation(fields: [periodoId], references: [id])
+  profesor            PerfilProfesor       @relation(fields: [profesorId], references: [id])
+  horarios            HorarioGrupo[]
+  detallesInscripcion DetalleInscripcion[]
+  tareas              Tarea[]
+
+  @@map("grupos")
+}
+
+model HorarioGrupo {
+  id         Int       @id @default(autoincrement())
+  grupoId    Int       @map("grupo_id")
+  diaSemana  DiaSemana @map("dia_semana")
+  horaInicio String    @map("hora_inicio") // Ej: "08:00"
+  horaFin    String    @map("hora_fin") // Ej: "10:00"
+
+  grupo Grupo @relation(fields: [grupoId], references: [id], onDelete: Cascade)
+
+  @@map("horarios_grupos")
+}
+
+model Inscripcion {
+  id                 Int      @id @default(autoincrement())
+  estudiantePerfilId Int      @map("estudiante_perfil_id")
+  periodoId          Int      @map("periodo_id")
+  fechaInscripcion   DateTime @default(now()) @map("fecha_inscripcion")
+
+  estudiantePerfil PerfilEstudiante     @relation(fields: [estudiantePerfilId], references: [id])
+  periodo          PeriodoAcademico     @relation(fields: [periodoId], references: [id])
+  detalles         DetalleInscripcion[]
+
+  @@unique([estudiantePerfilId, periodoId])
+  @@map("inscripciones")
+}
+
+model DetalleInscripcion {
+  id            Int @id @default(autoincrement())
+  inscripcionId Int @map("inscripcion_id")
+  grupoId       Int @map("grupo_id")
+
+  inscripcion Inscripcion @relation(fields: [inscripcionId], references: [id], onDelete: Cascade)
+  grupo       Grupo       @relation(fields: [grupoId], references: [id])
+
+  @@unique([inscripcionId, grupoId])
+  @@map("detalles_inscripciones")
+}
+
+model Tarea {
+  id          Int      @id @default(autoincrement())
+  grupoId     Int      @map("grupo_id")
+  titulo      String
+  descripcion String
+  fechaLimite DateTime @map("fecha_limite")
+
+  grupo    Grupo          @relation(fields: [grupoId], references: [id])
+  entregas EntregaTarea[]
+
+  @@map("tareas")
+}
+
+model EntregaTarea {
+  id                 Int      @id @default(autoincrement())
+  tareaId            Int      @map("tarea_id")
+  estudiantePerfilId Int      @map("estudiante_perfil_id")
+  contenidoTexto     String?  @map("contenido_texto")
+  archivoUrl         String?  @map("archivo_url")
+  calificacion       Float?
+  fechaEntrega       DateTime @default(now()) @map("fecha_entrega")
+
+  tarea            Tarea            @relation(fields: [tareaId], references: [id])
+  estudiantePerfil PerfilEstudiante @relation(fields: [estudiantePerfilId], references: [id])
+
+  @@unique([tareaId, estudiantePerfilId])
+  @@map("entregas_tareas")
+}
+
+model Pago {
+  id                     Int          @id @default(autoincrement())
+  estudianteUsuarioId    Int          @map("estudiante_usuario_id")
+  concepto               ConceptoPago
+  monto                  Decimal      @db.Decimal(10, 2)
+  metodo                 MetodoPago
+  estado                 EstadoPago   @default(PENDIENTE)
+  verificadoPorUsuarioId Int?         @map("verificado_por_usuario_id")
+  fechaVerificacion      DateTime?    @map("fecha_verificacion")
+  creadoEn               DateTime     @default(now()) @map("creado_en")
+
+  estudianteUsuario Usuario  @relation("PagosEstudiante", fields: [estudianteUsuarioId], references: [id])
+  verificadoPor     Usuario? @relation("PagosVerificados", fields: [verificadoPorUsuarioId], references: [id])
+
+  @@map("pagos")
+}
+
+model Auditoria {
+  id            Int      @id @default(autoincrement())
+  usuarioId     Int      @map("usuario_id")
+  accion        String // Ej: "APROBACION_ESTUDIANTE", "CREACION_GRUPO", "MODIFICACION_NOTA"
+  tablaAfectada String   @map("tabla_afectada") // Ej: "usuarios", "entregas_tareas"
+  registroId    String   @map("registro_id") // ID del registro modificado
+  detalles      String? // JSON o texto describiendo los cambios hechos
+  fechaHora     DateTime @default(now()) @map("fecha_hora")
+
+  usuario Usuario @relation("UsuarioAuditor", fields: [usuarioId], references: [id])
+
+  @@map("auditorias")
+}
