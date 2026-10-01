@@ -7,6 +7,8 @@ import { ConfigModule } from '@nestjs/config';
 import { UsuariosModule } from './usuarios/usuarios.module.js';
 import { AuthModule } from './auth/auth.module.js';
 import { MatriculasModule } from './matriculas/matriculas.module.js';
+import { PagosModule } from './pagos/pagos.module.js';
+import { TareasModule } from './tareas/tareas.module.js';
 
 export const { ObserveModule, ObserveInstrument } = createObserveModule();
 
@@ -26,6 +28,8 @@ export const { ObserveModule, ObserveInstrument } = createObserveModule();
     UsuariosModule,
     AuthModule,
     MatriculasModule,
+    PagosModule,
+    TareasModule,
   ],
   controllers: [AppController],
   providers: [AppService],

@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   ConflictException,
+  ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
@@ -8,12 +9,24 @@ import { CreateMatriculaDto } from './dto/create-matricula.dto.js';
 import { UpdateMatriculaDto } from './dto/update-matricula.dto.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { existeTraslapeHorario } from './utils/horario.utils.js';
+import { PagosService } from '../pagos/pagos.service.js';
 
 @Injectable()
 export class MatriculasService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private readonly pagosService: PagosService,
+  ) {}
 
   async matricular(matriculaDto: CreateMatriculaDto) {
+    const tieneMora = await this.pagosService.verificarMoraEstudiante(
+      matriculaDto.estudiantePerfilId,
+    );
+    if (tieneMora) {
+      throw new ForbiddenException(
+        'No puedes realizar nuevas matrículas debido a que presentas deudas vencidas.',
+      );
+    }
     const { estudiantePerfilId, grupoId } = matriculaDto;
     const grupoObjetivo = await this.prisma.grupo.findUnique({
       where: { id: grupoId },
