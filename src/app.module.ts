@@ -6,6 +6,7 @@ import { PrismaModule } from './prisma/prisma.module.js';
 import { ConfigModule } from '@nestjs/config';
 import { UsuariosModule } from './usuarios/usuarios.module.js';
 import { AuthModule } from './auth/auth.module.js';
+import { MatriculasModule } from './matriculas/matriculas.module.js';
 
 export const { ObserveModule, ObserveInstrument } = createObserveModule();
 
@@ -24,6 +25,7 @@ export const { ObserveModule, ObserveInstrument } = createObserveModule();
     PrismaModule,
     UsuariosModule,
     AuthModule,
+    MatriculasModule,
   ],
   controllers: [AppController],
   providers: [AppService],
