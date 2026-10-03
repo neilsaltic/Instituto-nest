@@ -9,6 +9,8 @@ import { AuthModule } from './auth/auth.module.js';
 import { MatriculasModule } from './matriculas/matriculas.module.js';
 import { PagosModule } from './pagos/pagos.module.js';
 import { TareasModule } from './tareas/tareas.module.js';
+import { MateriasModule } from './materias/materias.module.js';
+import { envValidationSchema } from './config/env.validations.js';
 
 export const { ObserveModule, ObserveInstrument } = createObserveModule();
 
@@ -18,6 +20,13 @@ export const { ObserveModule, ObserveInstrument } = createObserveModule();
     // telemetry, alarms, and more — out of the box. Sign up at https://observe.nestjs.com
     ConfigModule.forRoot({
       isGlobal: true,
+      validationSchema: envValidationSchema,
+      validationOptions: {
+        libraryOptions: {
+          allowUnknown: true,
+          abortEarly: true,
+        },
+      },
     }),
     ObserveModule.forRoot({
       appKey: 'YOUR_APP_KEY',
@@ -30,6 +39,7 @@ export const { ObserveModule, ObserveInstrument } = createObserveModule();
     MatriculasModule,
     PagosModule,
     TareasModule,
+    MateriasModule,
   ],
   controllers: [AppController],
   providers: [AppService],

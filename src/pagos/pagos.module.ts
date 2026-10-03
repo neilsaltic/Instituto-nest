@@ -4,7 +4,7 @@ import { PagosController } from './pagos.controller.js';
 import { PrismaModule } from '../prisma/prisma.module.js';
 
 @Module({
-  imports: [PrismaModule, PagosModule],
+  imports: [PrismaModule],
   controllers: [PagosController],
   providers: [PagosService],
   exports: [PagosService],

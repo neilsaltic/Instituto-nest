@@ -223,7 +223,10 @@ model Pago {
   estado                 EstadoPago   @default(PENDIENTE)
   verificadoPorUsuarioId Int?         @map("verificado_por_usuario_id")
   fechaVerificacion      DateTime?    @map("fecha_verificacion")
-  creadoEn               DateTime     @default(now()) @map("creado_en")
+
+  transaccionId String? @map("transaccion_id")
+
+  creadoEn DateTime @default(now()) @map("creado_en")
 
   estudianteUsuario Usuario  @relation("PagosEstudiante", fields: [estudianteUsuarioId], references: [id])
   verificadoPor     Usuario? @relation("PagosVerificados", fields: [verificadoPorUsuarioId], references: [id])

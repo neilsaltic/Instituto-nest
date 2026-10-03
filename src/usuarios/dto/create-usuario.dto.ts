@@ -8,80 +8,67 @@ import {
   Matches,
   MinLength,
 } from 'class-validator';
-import { EstadoUsuario, Rol } from '../../generated/prisma/enums.js';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { EstadoUsuario, Rol } from '../../generated/prisma/enums.js'; // Importar desde @prisma/client evita errores de módulo
+
 export class CreateUsuarioDto {
-  @IsEmail({}, { message: 'El formato de correo electrónico no es válido' })
-  @IsNotEmpty({ message: 'El Email no puede estar Vacio' })
-  @Matches(/\S/, {
-    message: 'El email no puede contener solo espacios',
-  })
+  @ApiProperty({ example: 'estudiante@ejemplo.com' })
+  @IsEmail({}, { message: 'El formato de correo no es válido' })
+  @IsNotEmpty({ message: 'El email es requerido' })
   email: string;
 
-  @IsString({ message: 'la contraseña debe ser una cadena de texto' })
+  @ApiProperty({ example: 'ClaveSegura123!', minLength: 8 })
+  @IsString()
   @MinLength(8, { message: 'La contraseña debe tener al menos 8 caracteres' })
-  @IsNotEmpty({ message: 'la contraseña no puede estar Vacia' })
-  @Matches(/\S/, {
-    message: 'la contraseña no puede contener solo espacios',
-  })
+  @IsNotEmpty()
   password: string;
 
-  @IsString({ message: 'El nombre debe ser una cadena de texto' })
-  @IsNotEmpty({ message: 'el nombre no puede estar vacio' })
-  @Matches(/\S/, {
-    message: 'el nombre no puede contener solo espacios',
-  })
-  @MinLength(2, { message: 'el nombre debe tener al menos 2 caracteres' })
+  @ApiProperty({ example: 'Juan' })
+  @IsString()
+  @IsNotEmpty()
+  @MinLength(2)
   nombre: string;
 
-  @IsString({ message: 'El apellido debe ser una cadena de texto' })
-  @IsNotEmpty({ message: 'el apellido no puede estar vacio' })
-  @Matches(/\S/, {
-    message: 'el apellido no puede contener solo espacios',
-  })
-  @MinLength(2, { message: 'el apellido debe tener al menos 2 caracteres' })
+  @ApiProperty({ example: 'Pérez' })
+  @IsString()
+  @IsNotEmpty()
+  @MinLength(2)
   apellido: string;
 
-  @IsString({ message: 'El CI debe ser una cadena de texto' })
-  @IsNotEmpty({ message: 'el CI no puede estar vacio' })
-  @Matches(/\S/, {
-    message: 'el CI no puede contener solo espacios',
-  })
-  @MinLength(5, { message: 'el CI debe tener al menos 5 caracteres' })
+  @ApiProperty({ example: '1234567' })
+  @IsString()
+  @IsNotEmpty()
+  @MinLength(5)
   ci: string;
 
-  @IsString({ message: 'La fecha de nacimiento debe ser una cadena de texto' })
-  @IsNotEmpty({ message: 'La fecha de nacimiento no puede estar vacía' })
-  @Matches(/\S/, {
-    message: 'La fecha de nacimiento no puede contener solo espacios',
-  })
+  @ApiProperty({ example: '2000-05-15' })
   @IsDateString(
-    { strict: true },
-    {
-      message:
-        'La fecha de nacimiento debe tener un formato válido (ej. YYYY-MM-DD)',
-    },
+    {},
+    { message: 'Formato de fecha de nacimiento inválido (YYYY-MM-DD)' },
   )
-  fechaNacimiento: string; // Formato ISO "YYYY-MM-DD"
+  @IsNotEmpty()
+  fechaNacimiento: string;
 
+  @ApiPropertyOptional({ example: '71234567' })
   @IsOptional()
-  @IsString({ message: 'El teléfono debe ser una cadena de texto' })
-  @Matches(/\S/, { message: 'El teléfono no puede contener solo espacios' })
-  @Matches(/^[0-9+() -]+$/, {
-    message:
-      'El teléfono solo puede contener números, espacios y caracteres como +, - o ()',
-  })
-  @MinLength(7, { message: 'El teléfono debe tener al menos 7 caracteres' })
+  @IsString()
   telefono?: string;
 
-  @IsOptional()
-  @IsEnum(Rol, {
-    message: `El rol debe ser un valor válido (${Object.values(Rol).join(', ')})`,
+  @ApiPropertyOptional({
+    enum: EstadoUsuario,
+    example: EstadoUsuario.PENDIENTE,
   })
-  rol?: Rol;
-
   @IsOptional()
-  @IsEnum(EstadoUsuario, {
-    message: `El estado debe ser un valor válido (${Object.values(EstadoUsuario).join(', ')})`,
-  })
+  @IsEnum(EstadoUsuario)
   estado?: EstadoUsuario;
+
+  @ApiPropertyOptional({ example: 'Carlos Pérez' })
+  @IsOptional()
+  @IsString()
+  nombreTutor?: string;
+
+  @ApiPropertyOptional({ example: '77712345' })
+  @IsOptional()
+  @IsString()
+  telefonoTutor?: string;
 }

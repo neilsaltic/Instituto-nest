@@ -270,4 +270,189 @@ export class MatriculasService {
       detalle: detalleActualizado,
     };
   }
+  // 1. Obtener toda la oferta de materias en el periodo académico activo
+  async obtenerOfertaAcademica() {
+    return await this.prisma.materia.findMany({
+      where: {
+        grupos: {
+          some: {
+            periodo: { activo: true },
+          },
+        },
+      },
+      select: {
+        id: true,
+        codigo: true,
+        nombre: true,
+        creditos: true,
+        costoInscripcion: true,
+        costoMensualidad: true,
+        grupos: {
+          where: {
+            periodo: { activo: true },
+          },
+          select: {
+            id: true,
+            nombre: true,
+            cupoMaximo: true,
+            _count: {
+              select: { detallesInscripcion: true },
+            },
+            horarios: {
+              select: {
+                diaSemana: true,
+                horaInicio: true,
+                horaFin: true,
+              },
+            },
+            profesor: {
+              select: {
+                usuario: {
+                  select: {
+                    nombre: true,
+                    apellido: true,
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    });
+  }
+
+  // 2. Obtener la información detallada de una materia en específico
+  async obtenerDetalleMateria(materiaId: number) {
+    const materia = await this.prisma.materia.findUnique({
+      where: { id: materiaId },
+      include: {
+        grupos: {
+          where: {
+            periodo: { activo: true },
+          },
+          include: {
+            periodo: {
+              select: {
+                id: true,
+                nombre: true,
+                limiteCreditos: true,
+              },
+            },
+            horarios: {
+              select: {
+                diaSemana: true,
+                horaInicio: true,
+                horaFin: true,
+              },
+            },
+            profesor: {
+              include: {
+                usuario: {
+                  select: {
+                    nombre: true,
+                    apellido: true,
+                    email: true,
+                  },
+                },
+              },
+            },
+            detallesInscripcion: true,
+          },
+        },
+      },
+    });
+
+    if (!materia) {
+      throw new NotFoundException('La materia solicitada no existe.');
+    }
+
+    // Formatear la respuesta calculando el cupo disponible de cada grupo
+    const gruposConCupo = materia.grupos.map((grupo) => {
+      const inscritos = grupo.detallesInscripcion.length;
+      const { detallesInscripcion, ...restoGrupo } = grupo;
+      return {
+        ...restoGrupo,
+        inscritosActuales: inscritos,
+        cuposDisponibles: grupo.cupoMaximo - inscritos,
+      };
+    });
+
+    return {
+      id: materia.id,
+      codigo: materia.codigo,
+      nombre: materia.nombre,
+      creditos: materia.creditos,
+      costoInscripcion: materia.costoInscripcion,
+      costoMensualidad: materia.costoMensualidad,
+      gruposAcademicos: gruposConCupo,
+    };
+  }
+  // Obtener todas las materias del catálogo (activas, inactivas, con o sin cupo)
+  async obtenerTodasLasMaterias() {
+    const materias = await this.prisma.materia.findMany({
+      include: {
+        grupos: {
+          include: {
+            periodo: {
+              select: {
+                id: true,
+                nombre: true,
+                activo: true,
+              },
+            },
+            horarios: {
+              select: {
+                diaSemana: true,
+                horaInicio: true,
+                horaFin: true,
+              },
+            },
+            profesor: {
+              select: {
+                usuario: {
+                  select: {
+                    nombre: true,
+                    apellido: true,
+                  },
+                },
+              },
+            },
+            _count: {
+              select: { detallesInscripcion: true },
+            },
+          },
+        },
+      },
+    });
+
+    // Mapear la respuesta para incluir el cálculo explícito de cupos
+    return materias.map((materia) => ({
+      id: materia.id,
+      codigo: materia.codigo,
+      nombre: materia.nombre,
+      creditos: materia.creditos,
+      costoInscripcion: materia.costoInscripcion,
+      costoMensualidad: materia.costoMensualidad,
+      totalGrupos: materia.grupos.length,
+      grupos: materia.grupos.map((grupo) => {
+        const inscritos = grupo._count.detallesInscripcion;
+        const disponibles = grupo.cupoMaximo - inscritos;
+
+        return {
+          id: grupo.id,
+          nombre: grupo.nombre,
+          periodo: grupo.periodo.nombre,
+          periodoActivo: grupo.periodo.activo,
+          cupoMaximo: grupo.cupoMaximo,
+          inscritosActuales: inscritos,
+          cuposDisponibles: disponibles > 0 ? disponibles : 0,
+          estaLleno: disponibles <= 0,
+          profesor: grupo.profesor
+            ? `${grupo.profesor.usuario.nombre} ${grupo.profesor.usuario.apellido}`
+            : 'Sin asignar',
+          horarios: grupo.horarios,
+        };
+      }),
+    }));
+  }
 }
