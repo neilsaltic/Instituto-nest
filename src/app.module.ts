@@ -11,6 +11,8 @@ import { PagosModule } from './pagos/pagos.module.js';
 import { TareasModule } from './tareas/tareas.module.js';
 import { MateriasModule } from './materias/materias.module.js';
 import { envValidationSchema } from './config/env.validations.js';
+import { PeriodosModule } from './periodos/periodos.module.js';
+import { GruposModule } from './grupos/grupos.module.js';
 
 export const { ObserveModule, ObserveInstrument } = createObserveModule();
 
@@ -40,6 +42,8 @@ export const { ObserveModule, ObserveInstrument } = createObserveModule();
     PagosModule,
     TareasModule,
     MateriasModule,
+    PeriodosModule,
+    GruposModule,
   ],
   controllers: [AppController],
   providers: [AppService],
