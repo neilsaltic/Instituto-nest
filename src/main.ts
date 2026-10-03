@@ -2,7 +2,7 @@ import { NestFactory } from '@nestjs/core';
 import { AppModule, ObserveInstrument } from './app.module.js';
 import { ValidationPipe } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import 'dotenv/config';
+
 import { LoggingInterceptor } from './common/logging.interceptor.js';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 
