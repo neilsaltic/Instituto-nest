@@ -10,11 +10,12 @@ import {
 import * as bcrypt from 'bcrypt';
 
 const prisma = new PrismaClient({
+  datasourceUrl: process.env.DATABASE_URL,
   log: ['query', 'info', 'warn', 'error'],
 } as any);
 
 async function main() {
-  console.log('🌱 Iniciando la siembra de datos de prueba (Seed)...');
+  console.log(' Iniciando la siembra de datos de prueba (Seed)...');
 
   // 1. Limpiar la base de datos previa para evitar duplicados de correo o CI
   await prisma.entregaTarea.deleteMany();
