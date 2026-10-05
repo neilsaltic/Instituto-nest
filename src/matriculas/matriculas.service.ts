@@ -270,6 +270,44 @@ export class MatriculasService {
       detalle: detalleActualizado,
     };
   }
+
+  async obtenerMisMaterias(usuarioId: number) {
+    // 1. Buscar el perfil del estudiante asociado al usuario
+    const estudiante = await this.prisma.perfilEstudiante.findUnique({
+      where: { usuarioId },
+    });
+
+    if (!estudiante) {
+      throw new NotFoundException('Perfil de estudiante no encontrado');
+    }
+
+    // 2. Obtener todas las inscripciones activas con sus grupos y materias
+    return this.prisma.inscripcion.findMany({
+      where: {
+        estudiantePerfilId: estudiante.id,
+      },
+      include: {
+        grupo: {
+          include: {
+            materia: true,
+            profesor: {
+              include: {
+                usuario: {
+                  select: {
+                    nombre: true,
+                    apellido: true,
+                    email: true,
+                  },
+                },
+              },
+            },
+            horarios: true,
+          },
+        },
+        periodo: true,
+      },
+    });
+  }
   // 1. Obtener toda la oferta de materias en el periodo académico activo
   async obtenerOfertaAcademica() {
     return await this.prisma.materia.findMany({

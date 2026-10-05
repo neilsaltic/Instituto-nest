@@ -8,6 +8,7 @@ import {
   Delete,
   ParseIntPipe,
   UseGuards,
+  Req,
 } from '@nestjs/common';
 import { MatriculasService } from './matriculas.service.js';
 import { CreateMatriculaDto } from './dto/create-matricula.dto.js';
@@ -16,18 +17,18 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard.js';
 import { RolesGuard } from '../auth/guards/roles.guard.js';
 import { Roles } from '../auth/decorators/roles.decorators.js';
 import { ApiOperation } from '@nestjs/swagger';
+import { Rol } from '../generated/prisma/enums.js';
 
 @Controller('matriculas')
 export class MatriculasController {
   constructor(private readonly matriculasService: MatriculasService) {}
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles('ESTUDIANTE')
+
   @Post()
   async matricular(@Body() dto: CreateMatriculaDto) {
     return this.matriculasService.matricular(dto);
   }
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles('RECEPCIONISTA')
+  @Roles(Rol.RECEPCIONISTA)
   @Patch('detalle/:detalleId')
   async cambiarGrupo(
     @Param('detalleId', ParseIntPipe) detalleId: number,
@@ -37,6 +38,15 @@ export class MatriculasController {
       detalleId,
       updateDto.nuevoGrupoId,
     );
+  }
+  @Get('mis-materias')
+  @Roles(Rol.ESTUDIANTE)
+  @ApiOperation({
+    summary:
+      'Obtener la lista de materias/grupos en los que está inscrito el estudiante autenticado (Solo Estudiante)',
+  })
+  async obtenerMisMaterias(@Req() req: any) {
+    return this.matriculasService.obtenerMisMaterias(req.user.id);
   }
   @ApiOperation({ summary: 'Obtener oferta académica de materias disponibles' })
   @Get('oferta')
