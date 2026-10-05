@@ -25,6 +25,7 @@ import {
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
+import { Rol } from '../generated/prisma/enums.js';
 
 @ApiTags('Tareas')
 @ApiBearerAuth('JWT-auth')
@@ -38,7 +39,7 @@ export class TareasController {
   @ApiResponse({ status: 400, description: 'Datos de entrada inválidos.' })
   @ApiResponse({ status: 401, description: 'No autorizado.' })
   @ApiResponse({ status: 403, description: 'Acceso prohibido para este rol.' })
-  @Roles('PROFESOR')
+  @Roles(Rol.PROFESOR)
   @Post()
   async crearTarea(@Body() dto: CreateTareaDto) {
     return this.tareasService.crearTarea(dto);
