@@ -16,18 +16,20 @@ import { UpdateMatriculaDto } from './dto/update-matricula.dto.js';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard.js';
 import { RolesGuard } from '../auth/guards/roles.guard.js';
 import { Roles } from '../auth/decorators/roles.decorators.js';
-import { ApiOperation } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
 import { Rol } from '../generated/prisma/enums.js';
 
 @Controller('matriculas')
 export class MatriculasController {
   constructor(private readonly matriculasService: MatriculasService) {}
+  @ApiBearerAuth('JWT-auth')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(Rol.RECEPCIONISTA)
   @Post()
   async matricular(@Body() dto: CreateMatriculaDto) {
     return this.matriculasService.matricular(dto);
   }
+  @ApiBearerAuth('JWT-auth')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(Rol.RECEPCIONISTA)
   @Patch('detalle/:detalleId')
@@ -40,6 +42,8 @@ export class MatriculasController {
       updateDto.nuevoGrupoId,
     );
   }
+  @ApiBearerAuth('JWT-auth')
+  @UseGuards(JwtAuthGuard, RolesGuard)
   @Get('mis-materias')
   @Roles(Rol.ESTUDIANTE)
   @ApiOperation({
