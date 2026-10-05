@@ -94,6 +94,27 @@ export class UsuariosService {
     });
   }
 
+  async createRecepcionista(dto: CreateUsuarioDto) {
+    await this.validarEmailYCi(dto.email, dto.ci);
+
+    const passwordHashed = await bcrypt.hash(dto.password, 10);
+
+    return await this.prisma.usuario.create({
+      data: {
+        email: dto.email,
+        password: passwordHashed,
+        nombre: dto.nombre,
+        apellido: dto.apellido,
+        ci: dto.ci,
+        fechaNacimiento: new Date(dto.fechaNacimiento),
+        telefono: dto.telefono,
+        rol: Rol.RECEPCIONISTA,
+        estado: dto.estado ?? EstadoUsuario.ACTIVO,
+      },
+      select: this.selectUsuarioConPerfil,
+    });
+  }
+
   // ==========================================
   // 2. MÉTODOS DE BÚSQUEDA Y LISTADO
   // ==========================================
@@ -108,6 +129,12 @@ export class UsuariosService {
   async findAllProfesores() {
     return await this.prisma.usuario.findMany({
       where: { rol: Rol.PROFESOR },
+      select: this.selectUsuarioConPerfil,
+    });
+  }
+  async findAllRecepcionista() {
+    return await this.prisma.usuario.findMany({
+      where: { rol: Rol.RECEPCIONISTA },
       select: this.selectUsuarioConPerfil,
     });
   }
@@ -128,6 +155,18 @@ export class UsuariosService {
   async findOneProfesor(id: number) {
     const profesor = await this.prisma.usuario.findFirst({
       where: { id, rol: Rol.PROFESOR },
+      select: this.selectUsuarioConPerfil,
+    });
+
+    if (!profesor) {
+      throw new NotFoundException(`Profesor con ID ${id} no fue encontrado`);
+    }
+
+    return profesor;
+  }
+  async findOneRecepcionista(id: number) {
+    const profesor = await this.prisma.usuario.findFirst({
+      where: { id, rol: Rol.RECEPCIONISTA },
       select: this.selectUsuarioConPerfil,
     });
 

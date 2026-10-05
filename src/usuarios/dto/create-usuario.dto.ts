@@ -12,7 +12,7 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { EstadoUsuario, Rol } from '../../generated/prisma/enums.js'; // Importar desde @prisma/client evita errores de módulo
 
 export class CreateUsuarioDto {
-  @ApiProperty({ example: 'estudiante@ejemplo.com' })
+  @ApiProperty({ example: 'usuario@ejemplo.com' })
   @IsEmail({}, { message: 'El formato de correo no es válido' })
   @IsNotEmpty({ message: 'El email es requerido' })
   email: string;

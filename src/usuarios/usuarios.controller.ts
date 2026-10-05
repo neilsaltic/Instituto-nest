@@ -97,6 +97,30 @@ export class UsuariosController {
   ) {
     return await this.usuariosService.updateProfesor(id, dto);
   }
+  @ApiBearerAuth('JWT-auth')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('ADMINISTRADOR')
+  @Post('Recepcioista')
+  @ApiOperation({ summary: 'Registrar un nuevo recepcionista' })
+  async createRecepcionista(@Body() dto: CreateUsuarioDto) {
+    return await this.usuariosService.createRecepcionista(dto);
+  }
+  @ApiBearerAuth('JWT-auth')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('ADMINISTRADOR')
+  @Get('Recepcionista')
+  @ApiOperation({ summary: 'Listar todos los profesores' })
+  async findAllRecepcionista() {
+    return await this.usuariosService.findAllRecepcionista();
+  }
+  @ApiBearerAuth('JWT-auth')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('ADMINISTRADOR')
+  @Get('profesores/:id')
+  @ApiOperation({ summary: 'Obtener un profesor por ID con su perfil' })
+  async findOneRecepcinoista(@Param('id', ParseIntPipe) id: number) {
+    return await this.usuariosService.findOneRecepcionista(id);
+  }
 
   // --- ELIMINAR ---
   @ApiBearerAuth('JWT-auth')
