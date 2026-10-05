@@ -30,8 +30,10 @@ async function bootstrap() {
   );
 
   const config = new DocumentBuilder()
-    .setTitle('API de Gestión Escolar / Clínica')
-    .setDescription('Documentación de la API de administración y servicios')
+    .setTitle('API de Gestión Escolar')
+    .setDescription(
+      'Documentación de la API de administración y servicios de instituto ',
+    )
     .setVersion('1.0.0')
     .addBearerAuth(
       {
