@@ -152,8 +152,14 @@ export class PagosService {
     if (!pago) {
       throw new NotFoundException(`El pago con ID ${pagoId} no fue encontrado`);
     }
-
-    if (payload.status === 'SUCCEEDED') {
+    const status = String(
+      payload?.status || payload?.event || '',
+    ).toUpperCase();
+    if (
+      status.includes('SUCCEEDED') ||
+      status.includes('SUCCESS') ||
+      status === 'APROBADO'
+    ) {
       await this.prisma.$transaction([
         this.prisma.pago.update({
           where: { id: pagoId },
@@ -167,7 +173,12 @@ export class PagosService {
           data: { estado: EstadoUsuario.ACTIVO },
         }),
       ]);
-    } else if (payload.status === 'FAILED') {
+    } else if (
+      status.includes('FAILED') ||
+      status.includes('REJECTED') ||
+      status.includes('DECLINED') ||
+      status === 'RECHAZADO'
+    ) {
       await this.prisma.pago.update({
         where: { id: pagoId },
         data: { estado: 'RECHAZADO' },
