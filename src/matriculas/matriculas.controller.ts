@@ -22,7 +22,8 @@ import { Rol } from '../generated/prisma/enums.js';
 @Controller('matriculas')
 export class MatriculasController {
   constructor(private readonly matriculasService: MatriculasService) {}
-
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Rol.RECEPCIONISTA)
   @Post()
   async matricular(@Body() dto: CreateMatriculaDto) {
     return this.matriculasService.matricular(dto);
