@@ -1,136 +1,226 @@
 import {
-  Controller,
-  Get,
-  Post,
-  Body,
-  Patch,
-  Param,
-  Delete,
-  Query,
-  Req,
-  ParseIntPipe,
-  UseGuards,
-  HttpCode,
-  HttpStatus,
+  Injectable,
+  InternalServerErrorException,
+  NotFoundException,
 } from '@nestjs/common';
-import { PagosService } from './pagos.service.js';
-import { CreatePagoDto } from './dto/create-pago.dto.js';
-import { UpdatePagoDto } from './dto/update-pago.dto.js';
+import { PrismaService } from '../prisma/prisma.service.js';
 import { QueryPagoDto } from './dto/query-pago.dto.js';
+import { CreatePagoDto } from './dto/create-pago.dto.js';
 import { ValidarPagoDto } from './dto/validar-pago-dto.js';
-import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard.js';
-import { RolesGuard } from '../auth/guards/roles.guard.js';
-import { Roles } from '../auth/decorators/roles.decorators.js';
-import {
-  ApiBearerAuth,
-  ApiOperation,
-  ApiResponse,
-  ApiTags,
-  ApiParam,
-  ApiQuery,
-} from '@nestjs/swagger';
 import { WebhookMockPayDto } from './dto/webhook-mockpay.dto.js';
+import { EstadoUsuario } from '../generated/prisma/enums.js';
 
-@ApiTags('Pagos')
-@Controller('pagos')
-export class PagosController {
-  constructor(private readonly pagosService: PagosService) {}
+@Injectable()
+export class PagosService {
+  constructor(private prisma: PrismaService) {}
 
-  @ApiOperation({ summary: 'Obtener lista de pagos (Solo Recepcionista)' })
-  @ApiResponse({
-    status: 200,
-    description: 'Lista de pagos obtenida exitosamente.',
-  })
-  @ApiResponse({ status: 401, description: 'No autorizado.' })
-  @ApiResponse({ status: 403, description: 'Acceso prohibido para este rol.' })
-  @ApiBearerAuth('JWT-auth')
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles('RECEPCIONISTA')
-  @Get()
-  async ObtenerPagos(@Query() query: QueryPagoDto) {
-    return this.pagosService.obtenerPagos(query);
+  async obtenerPagos(query: QueryPagoDto) {
+    const { estudiantePerfilId, estado } = query;
+
+    return await this.prisma.pago.findMany({
+      where: {
+        ...(estado && { estado }),
+        ...(estudiantePerfilId && { estudianteUsuarioId: estudiantePerfilId }),
+      },
+      include: {
+        estudianteUsuario: {
+          select: {
+            id: true,
+            nombre: true,
+            apellido: true,
+            email: true,
+            estado: true,
+          },
+        },
+        verificadoPor: {
+          select: {
+            id: true,
+            nombre: true,
+            apellido: true,
+          },
+        },
+      },
+      orderBy: { creadoEn: 'desc' },
+    });
   }
 
-  @ApiOperation({
-    summary: 'Registrar pago manual en caja (Solo Recepcionista)',
-  })
-  @ApiResponse({
-    status: 201,
-    description: 'Pago registrado exitosamente como APROBADO.',
-  })
-  @ApiResponse({ status: 400, description: 'Datos de entrada inválidos.' })
-  @ApiResponse({ status: 401, description: 'No autorizado.' })
-  @ApiResponse({ status: 403, description: 'Acceso prohibido para este rol.' })
-  @ApiBearerAuth('JWT-auth')
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles('RECEPCIONISTA')
-  @Post()
-  async registrarPago(@Body() dto: CreatePagoDto, @Req() req: any) {
-    const receppcionistaId = req.user.id;
-    return this.pagosService.registrarPago(dto, receppcionistaId);
+  // 1. Registro manual de pagos (Cajeros / Recepcionistas) -> Activa automáticamente al estudiante
+  async registrarPago(dto: CreatePagoDto, verificadoPorUsuarioId: number) {
+    return await this.prisma.$transaction(async (tx) => {
+      const nuevoPago = await tx.pago.create({
+        data: {
+          estudianteUsuarioId: dto.estudianteUsuarioId,
+          concepto: dto.concepto,
+          monto: dto.monto,
+          metodo: dto.metodo,
+          estado: 'APROBADO',
+          verificadoPorUsuarioId,
+          fechaVerificacion: new Date(),
+        },
+        include: {
+          estudianteUsuario: {
+            select: { id: true, nombre: true, apellido: true, email: true },
+          },
+        },
+      });
+
+      // Activar la cuenta del usuario tras el pago
+      await tx.usuario.update({
+        where: { id: dto.estudianteUsuarioId },
+        data: { estado: EstadoUsuario.ACTIVO },
+      });
+
+      return nuevoPago;
+    });
   }
 
-  @ApiOperation({
-    summary: 'Validar o cambiar estado de un pago (Solo Recepcionista)',
-  })
-  @ApiParam({
-    name: 'id',
-    description: 'ID del pago a actualizar',
-    type: Number,
-  })
-  @ApiResponse({
-    status: 200,
-    description: 'Estado del pago actualizado correctamente.',
-  })
-  @ApiResponse({ status: 404, description: 'El registro de pago no existe.' })
-  @ApiResponse({ status: 401, description: 'No autorizado.' })
-  @ApiBearerAuth('JWT-auth')
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles('RECEPCIONISTA')
-  @Patch(':id/validar')
+  // 2. Crear intención de pago automatizada en MockPay
+  async crearIntencionPagoMockPay(dto: CreatePagoDto) {
+    const nuevoPago = await this.prisma.pago.create({
+      data: {
+        estudianteUsuarioId: dto.estudianteUsuarioId,
+        concepto: dto.concepto,
+        monto: dto.monto,
+        metodo: dto.metodo,
+        estado: 'PENDIENTE',
+      },
+    });
+
+    try {
+      const response = await fetch(
+        'https://api-mock-payment.funvaltech.cloud/api/v1/payments',
+        {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${process.env.MOCKPAY_SECRET_KEY}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            amount: dto.monto,
+            currency: 'USD',
+            metadata: {
+              order_id: nuevoPago.id.toString(), // Kasapulan para iti MockPay
+              pagoId: nuevoPago.id.toString(),
+            },
+          }),
+        },
+      );
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.message || 'Error al comunicarse con MockPay');
+      }
+
+      await this.prisma.pago.update({
+        where: { id: nuevoPago.id },
+        data: { transaccionId: data.id },
+      });
+
+      return {
+        pagoId: nuevoPago.id,
+        checkoutUrl: data.checkout_url,
+      };
+    } catch (error) {
+      throw new InternalServerErrorException(
+        'Error al procesar el pago con la pasarela MockPay',
+      );
+    }
+  }
+
+  // 3. Procesar respuesta automática del Webhook de MockPay
+  async procesarWebhookMockPay(payload: WebhookMockPayDto) {
+    // Read order_id, pagoId, or matriculaId safely
+    const rawId =
+      payload.metadata?.order_id ??
+      payload.metadata?.pagoId ??
+      payload.metadata?.matriculaId;
+
+    const pagoId = Number(rawId);
+
+    if (!pagoId || isNaN(pagoId)) {
+      return {
+        received: true,
+        note: 'No valid pagoId/order_id found in metadata',
+      };
+    }
+
+    const pago = await this.prisma.pago.findUnique({
+      where: { id: pagoId },
+    });
+
+    if (!pago) {
+      throw new NotFoundException(`El pago con ID ${pagoId} no fue encontrado`);
+    }
+
+    if (payload.status === 'SUCCEEDED') {
+      await this.prisma.$transaction([
+        this.prisma.pago.update({
+          where: { id: pagoId },
+          data: {
+            estado: 'APROBADO',
+            fechaVerificacion: new Date(),
+          },
+        }),
+        this.prisma.usuario.update({
+          where: { id: pago.estudianteUsuarioId },
+          data: { estado: EstadoUsuario.ACTIVO },
+        }),
+      ]);
+    } else if (payload.status === 'FAILED') {
+      await this.prisma.pago.update({
+        where: { id: pagoId },
+        data: { estado: 'RECHAZADO' },
+      });
+    }
+
+    return { received: true };
+  }
+
+  // 4. Cambiar / Validar Estado de Pago (Acción manual del Administrador/Recepción)
   async cambiarEstadoPago(
-    @Param('id', ParseIntPipe) id: number,
-    @Body() dto: ValidarPagoDto,
-    @Req() req: any,
+    pagoId: number,
+    dto: ValidarPagoDto,
+    verificadoPorUsuarioId: number,
   ) {
-    const recepcionistaId = req.user.id;
-    return this.pagosService.cambiarEstadoPago(id, dto, recepcionistaId);
+    const pago = await this.prisma.pago.findUnique({
+      where: { id: pagoId },
+    });
+
+    if (!pago) {
+      throw new NotFoundException('El registro de pago no existe.');
+    }
+
+    return await this.prisma.$transaction(async (tx) => {
+      const pagoActualizado = await tx.pago.update({
+        where: { id: pagoId },
+        data: {
+          estado: dto.estado,
+          verificadoPorUsuarioId,
+          fechaVerificacion: new Date(),
+        },
+      });
+
+      // Si el pago es APROBADO, se activa la cuenta del estudiante
+      if (dto.estado === 'APROBADO') {
+        await tx.usuario.update({
+          where: { id: pago.estudianteUsuarioId },
+          data: { estado: EstadoUsuario.ACTIVO },
+        });
+      }
+
+      return pagoActualizado;
+    });
   }
 
-  @ApiOperation({
-    summary: 'Generar link de checkout de MockPay para el estudiante',
-  })
-  @ApiResponse({
-    status: 201,
-    description:
-      'Intención de pago registrada. Devuelve la URL de redirección a la pasarela.',
-  })
-  @ApiResponse({ status: 400, description: 'Datos del pago inválidos.' })
-  @ApiResponse({
-    status: 500,
-    description: 'Error al comunicarse con la pasarela de pagos.',
-  })
-  @ApiBearerAuth('JWT-auth')
-  @UseGuards(JwtAuthGuard)
-  @Post('crear-intencion')
-  crearIntencionPago(@Body() dto: CreatePagoDto) {
-    return this.pagosService.crearIntencionPagoMockPay(dto);
-  }
+  async verificarMoraEstudiante(usuarioId: number): Promise<boolean> {
+    const deudaVencida = await this.prisma.pago.findFirst({
+      where: {
+        estudianteUsuarioId: usuarioId,
+        estado: 'PENDIENTE',
+      },
+    });
 
-  @ApiOperation({
-    summary: 'Webhook público para recibir notificaciones de MockPay',
-  })
-  @ApiResponse({
-    status: 200,
-    description: 'Notificación procesada correctamente.',
-  })
-  @ApiResponse({
-    status: 404,
-    description: 'Pago no encontrado en el sistema.',
-  })
-  @HttpCode(HttpStatus.OK)
-  @Post('webhook')
-  procesarWebhook(@Body() payload: WebhookMockPayDto) {
-    return this.pagosService.procesarWebhookMockPay(payload);
+    return !!deudaVencida;
   }
 }
