@@ -9,10 +9,7 @@ import {
 } from '../src/generated/prisma/client.js';
 import * as bcrypt from 'bcrypt';
 
-const prisma = new PrismaClient({
-  datasourceUrl: process.env.DATABASE_URL,
-  log: ['query', 'info', 'warn', 'error'],
-} as any);
+const prisma = new PrismaClient({} as any);
 
 async function main() {
   console.log(' Iniciando la siembra de datos de prueba (Seed)...');
