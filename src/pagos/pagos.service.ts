@@ -97,9 +97,9 @@ export class PagosService {
           },
           body: JSON.stringify({
             amount: dto.monto,
-            currency: 'USD',
+            currency: 'BOB',
             metadata: {
-              order_id: nuevoPago.id.toString(), // Kasapulan para iti MockPay
+              order_id: nuevoPago.id.toString(),
               pagoId: nuevoPago.id.toString(),
             },
           }),
@@ -129,16 +129,23 @@ export class PagosService {
   }
 
   // 3. Procesar respuesta automática del Webhook de MockPay
-  async procesarWebhookMockPay(payload: WebhookMockPayDto) {
-    // Read order_id, pagoId, or matriculaId safely
+  async procesarWebhookMockPay(payload: any) {
+    // Imprimir en los logs de Render para depuración
+    console.log('Webhook MockPay recibido:', JSON.stringify(payload, null, 2));
+
+    // Buscar order_id o pagoId en cualquier nivel del payload
     const rawId =
-      payload.metadata?.order_id ??
-      payload.metadata?.pagoId ??
-      payload.metadata?.matriculaId;
+      payload?.metadata?.order_id ??
+      payload?.metadata?.pagoId ??
+      payload?.data?.metadata?.order_id ??
+      payload?.data?.metadata?.pagoId ??
+      payload?.order_id ??
+      payload?.pagoId;
 
     const pagoId = Number(rawId);
 
     if (!pagoId || isNaN(pagoId)) {
+      console.warn('Webhook recibido sin pagoId válido:', payload);
       return {
         received: true,
         note: 'No valid pagoId/order_id found in metadata',
@@ -152,12 +159,18 @@ export class PagosService {
     if (!pago) {
       throw new NotFoundException(`El pago con ID ${pagoId} no fue encontrado`);
     }
+
+    // Normalizar status o event
     const status = String(
-      payload?.status || payload?.event || '',
+      payload?.status || payload?.event || payload?.data?.status || '',
     ).toUpperCase();
+
+    console.log(`Procesando pago ID ${pagoId} con estado recibido: ${status}`);
+
     if (
       status.includes('SUCCEEDED') ||
       status.includes('SUCCESS') ||
+      status.includes('PAID') ||
       status === 'APROBADO'
     ) {
       await this.prisma.$transaction([
@@ -173,6 +186,7 @@ export class PagosService {
           data: { estado: EstadoUsuario.ACTIVO },
         }),
       ]);
+      console.log(`Pago ID ${pagoId} actualizado a APROBADO`);
     } else if (
       status.includes('FAILED') ||
       status.includes('REJECTED') ||
@@ -183,11 +197,11 @@ export class PagosService {
         where: { id: pagoId },
         data: { estado: 'RECHAZADO' },
       });
+      console.log(`Pago ID ${pagoId} actualizado a RECHAZADO`);
     }
 
     return { received: true };
   }
-
   // 4. Cambiar / Validar Estado de Pago (Acción manual del Administrador/Recepción)
   async cambiarEstadoPago(
     pagoId: number,

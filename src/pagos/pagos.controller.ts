@@ -30,6 +30,7 @@ import {
   ApiQuery,
 } from '@nestjs/swagger';
 import { WebhookMockPayDto } from './dto/webhook-mockpay.dto.js';
+import { Public } from '../auth/decorators/public.decorator.js';
 
 @ApiTags('Pagos')
 @Controller('pagos')
@@ -128,14 +129,10 @@ export class PagosController {
     status: 404,
     description: 'Pago no encontrado en el sistema.',
   })
+  @Public()
   @HttpCode(HttpStatus.OK)
   @Post('webhook')
-  async procesarWebhook(@Body() payload: WebhookMockPayDto) {
-    // Si la pasarela envía una verificación/ping vacía, respondemos OK para pasar la prueba de MockPay
-    if (!payload || !payload.id || !payload.status) {
-      return { ok: true, message: 'Webhook endpoint activo' };
-    }
-
+  async procesarWebhook(@Body() payload: any) {
     return await this.pagosService.procesarWebhookMockPay(payload);
   }
 }
