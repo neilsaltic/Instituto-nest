@@ -22,6 +22,7 @@ import { UpdateGrupoDto } from './dto/update-grupo.dto.js';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard.js';
 import { RolesGuard } from '../auth/guards/roles.guard.js';
 import { Roles } from '../auth/decorators/roles.decorators.js';
+import { Rol } from '../generated/prisma/enums.js';
 
 @ApiTags('Grupos y Horarios')
 @ApiBearerAuth('JWT-auth')
@@ -31,7 +32,7 @@ export class GruposController {
   constructor(private readonly gruposService: GruposService) {}
 
   @Post()
-  @Roles('ADMINISTRADOR')
+  @Roles(Rol.ADMINISTRADOR)
   @ApiOperation({
     summary: 'Crear un nuevo grupo con sus horarios (Solo Administrador)',
   })
@@ -55,7 +56,7 @@ export class GruposController {
   }
 
   @Patch(':id')
-  @Roles('ADMINISTRADOR')
+  @Roles(Rol.ADMINISTRADOR)
   @ApiOperation({
     summary: 'Actualizar un grupo y sus horarios (Solo Administrador)',
   })
@@ -67,7 +68,7 @@ export class GruposController {
   }
 
   @Delete(':id')
-  @Roles('ADMINISTRADOR')
+  @Roles(Rol.ADMINISTRADOR)
   @ApiOperation({ summary: 'Eliminar un grupo (Solo Administrador)' })
   remove(@Param('id', ParseIntPipe) id: number) {
     return this.gruposService.remove(id);

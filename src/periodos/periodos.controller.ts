@@ -16,6 +16,7 @@ import { UpdatePeriodoDto } from './dto/update-periodo.dto.js';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard.js';
 import { RolesGuard } from '../auth/guards/roles.guard.js';
 import { Roles } from '../auth/decorators/roles.decorators.js';
+import { Rol } from '../generated/prisma/enums.js';
 
 @ApiTags('Periodos Académicos')
 @ApiBearerAuth('JWT-auth')
@@ -25,7 +26,7 @@ export class PeriodosController {
   constructor(private readonly periodosService: PeriodosService) {}
 
   @Post()
-  @Roles('ADMINISTRADOR')
+  @Roles(Rol.ADMINISTRADOR)
   @ApiOperation({ summary: 'Crear periodo académico (Solo Admin)' })
   create(@Body() createPeriodoDto: CreatePeriodoDto) {
     return this.periodosService.create(createPeriodoDto);
@@ -44,7 +45,7 @@ export class PeriodosController {
   }
 
   @Patch(':id')
-  @Roles('ADMINISTRADOR')
+  @Roles(Rol.ADMINISTRADOR)
   @ApiOperation({ summary: 'Actualizar un periodo (Solo Admin)' })
   update(
     @Param('id', ParseIntPipe) id: number,
@@ -54,7 +55,7 @@ export class PeriodosController {
   }
 
   @Delete(':id')
-  @Roles('ADMINISTRADOR')
+  @Roles(Rol.ADMINISTRADOR)
   @ApiOperation({ summary: 'Eliminar un periodo (Solo Admin)' })
   remove(@Param('id', ParseIntPipe) id: number) {
     return this.periodosService.remove(id);
