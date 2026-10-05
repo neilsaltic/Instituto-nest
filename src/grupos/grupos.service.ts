@@ -113,22 +113,34 @@ export class GruposService {
 
   async update(id: number, updateGrupoDto: UpdateGrupoDto) {
     await this.findOne(id);
-    const { horarios, ...rest } = updateGrupoDto;
+    const { horarios, materiaId, periodoId, profesorId, nombre, cupoMaximo } =
+      updateGrupoDto;
 
     return this.prisma.$transaction(async (tx) => {
-      if (horarios) {
+      // 1. Eliminar horarios existentes si se enviaron nuevos horarios
+      if (horarios && horarios.length > 0) {
         await tx.horarioGrupo.deleteMany({ where: { grupoId: id } });
       }
 
+      // 2. Actualizar el grupo mapeando los campos explícitamente
       return tx.grupo.update({
         where: { id },
         data: {
-          ...rest,
-          ...(horarios && {
-            horarios: {
-              create: horarios,
-            },
-          }),
+          ...(materiaId !== undefined && { materiaId }),
+          ...(periodoId !== undefined && { periodoId }),
+          ...(profesorId !== undefined && { profesorId }),
+          ...(nombre !== undefined && { nombre }),
+          ...(cupoMaximo !== undefined && { cupoMaximo }),
+          ...(horarios &&
+            horarios.length > 0 && {
+              horarios: {
+                create: horarios.map((h) => ({
+                  diaSemana: h.diaSemana as any, // Mapea el enum
+                  horaInicio: h.horaInicio,
+                  horaFin: h.horaFin,
+                })),
+              },
+            }),
         },
         include: {
           horarios: true,
