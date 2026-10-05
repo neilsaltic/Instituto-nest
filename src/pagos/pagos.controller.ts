@@ -130,7 +130,12 @@ export class PagosController {
   })
   @HttpCode(HttpStatus.OK)
   @Post('webhook')
-  procesarWebhook(@Body() payload: WebhookMockPayDto) {
-    return this.pagosService.procesarWebhookMockPay(payload);
+  async procesarWebhook(@Body() payload: WebhookMockPayDto) {
+    // Si la pasarela envía una verificación/ping vacía, respondemos OK para pasar la prueba de MockPay
+    if (!payload || !payload.id || !payload.status) {
+      return { ok: true, message: 'Webhook endpoint activo' };
+    }
+
+    return await this.pagosService.procesarWebhookMockPay(payload);
   }
 }
