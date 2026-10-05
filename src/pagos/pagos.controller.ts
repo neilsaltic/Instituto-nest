@@ -10,6 +10,8 @@ import {
   Req,
   ParseIntPipe,
   UseGuards,
+  HttpCode,
+  HttpStatus,
 } from '@nestjs/common';
 import { PagosService } from './pagos.service.js';
 import { CreatePagoDto } from './dto/create-pago.dto.js';
@@ -126,6 +128,7 @@ export class PagosController {
     status: 404,
     description: 'Pago no encontrado en el sistema.',
   })
+  @HttpCode(HttpStatus.OK)
   @Post('webhook')
   procesarWebhook(@Body() payload: WebhookMockPayDto) {
     return this.pagosService.procesarWebhookMockPay(payload);
