@@ -23,21 +23,13 @@ import {
 } from '@nestjs/swagger';
 
 @ApiTags('Materias')
-@ApiBearerAuth('JWT-auth')
-@UseGuards(JwtAuthGuard, RolesGuard)
 @Controller('materias')
 export class MateriasController {
   constructor(private readonly materiasService: MateriasService) {}
 
   @ApiOperation({ summary: 'Crear una nueva materia (Solo Administrador)' })
-  @ApiResponse({ status: 201, description: 'Materia registrada exitosamente.' })
-  @ApiResponse({ status: 400, description: 'Datos de entrada inválidos.' })
-  @ApiResponse({ status: 401, description: 'No autorizado.' })
-  @ApiResponse({ status: 403, description: 'Acceso prohibido para este rol.' })
-  @ApiResponse({
-    status: 409,
-    description: 'El código de la materia ya se encuentra registrado.',
-  })
+  @ApiBearerAuth('JWT-auth') // Indicamos que este sí pide token
+  @UseGuards(JwtAuthGuard, RolesGuard) // Guard a nivel de método
   @Roles('ADMINISTRADOR')
   @Post()
   async create(@Body() createMateriaDto: CreateMateriaDto) {
@@ -49,23 +41,13 @@ export class MateriasController {
     status: 200,
     description: 'Lista de materias obtenida exitosamente.',
   })
-  @ApiResponse({ status: 401, description: 'No autorizado.' })
-  @Get()
+  @Get() // <--- LIBRE / PÚBLICO (Sin guards)
   async findAll() {
     return this.materiasService.findAll();
   }
 
   @ApiOperation({ summary: 'Obtener los detalles de una materia por su ID' })
-  @ApiParam({
-    name: 'id',
-    description: 'ID de la materia a consultar',
-    type: Number,
-    example: 1,
-  })
-  @ApiResponse({ status: 200, description: 'Materia encontrada.' })
-  @ApiResponse({ status: 401, description: 'No autorizado.' })
-  @ApiResponse({ status: 404, description: 'La materia no fue encontrada.' })
-  @Get(':id')
+  @Get(':id') // <--- LIBRE / PÚBLICO (Sin guards)
   async findOne(@Param('id', ParseIntPipe) id: number) {
     return this.materiasService.findOne(id);
   }
@@ -73,24 +55,8 @@ export class MateriasController {
   @ApiOperation({
     summary: 'Actualizar una materia existente (Solo Administrador)',
   })
-  @ApiParam({
-    name: 'id',
-    description: 'ID de la materia a actualizar',
-    type: Number,
-    example: 1,
-  })
-  @ApiResponse({
-    status: 200,
-    description: 'Materia actualizada correctamente.',
-  })
-  @ApiResponse({ status: 400, description: 'Datos de entrada inválidos.' })
-  @ApiResponse({ status: 401, description: 'No autorizado.' })
-  @ApiResponse({ status: 403, description: 'Acceso prohibido para este rol.' })
-  @ApiResponse({ status: 404, description: 'La materia no fue encontrada.' })
-  @ApiResponse({
-    status: 409,
-    description: 'El nuevo código ya está asignado a otra materia.',
-  })
+  @ApiBearerAuth('JWT-auth')
+  @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('ADMINISTRADOR')
   @Patch(':id')
   async update(
@@ -104,19 +70,8 @@ export class MateriasController {
     summary:
       'Obtener los profesores asignados a una materia (Solo Administrador)',
   })
-  @ApiParam({
-    name: 'id',
-    description: 'ID de la materia',
-    type: Number,
-    example: 1,
-  })
-  @ApiResponse({
-    status: 200,
-    description: 'Lista de profesores obtenida exitosamente.',
-  })
-  @ApiResponse({ status: 401, description: 'No autorizado.' })
-  @ApiResponse({ status: 403, description: 'Acceso prohibido para este rol.' })
-  @ApiResponse({ status: 404, description: 'La materia no fue encontrada.' })
+  @ApiBearerAuth('JWT-auth')
+  @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('ADMINISTRADOR')
   @Get(':id/profesores')
   async obtenerProfesoresPorMateria(
