@@ -8,7 +8,6 @@ import {
   Delete,
   ParseIntPipe,
   UseGuards,
-  Req,
 } from '@nestjs/common';
 import { MatriculasService } from './matriculas.service.js';
 import { CreateMatriculaDto } from './dto/create-matricula.dto.js';
@@ -18,6 +17,7 @@ import { RolesGuard } from '../auth/guards/roles.guard.js';
 import { Roles } from '../auth/decorators/roles.decorators.js';
 import { ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
 import { Rol } from '../generated/prisma/enums.js';
+import { GetUser } from '../auth/decorators/get-user.decorator.js';
 
 @Controller('matriculas')
 export class MatriculasController {
@@ -50,8 +50,8 @@ export class MatriculasController {
     summary:
       'Obtener la lista de materias/grupos en los que está inscrito el estudiante autenticado (Solo Estudiante)',
   })
-  async obtenerMisMaterias(@Req() req: any) {
-    return this.matriculasService.obtenerMisMaterias(req.user.id);
+  async obtenerMisMaterias(@GetUser('id') usuarioId: number) {
+    return this.matriculasService.obtenerMisMaterias(usuarioId);
   }
   @ApiOperation({ summary: 'Obtener oferta académica de materias disponibles' })
   @Get('oferta')

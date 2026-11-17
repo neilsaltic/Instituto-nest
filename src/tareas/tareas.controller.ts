@@ -26,6 +26,7 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 import { Rol } from '../generated/prisma/enums.js';
+import { GetUser } from '../auth/decorators/get-user.decorator.js';
 
 @ApiTags('Tareas')
 @ApiBearerAuth('JWT-auth')
@@ -33,6 +34,19 @@ import { Rol } from '../generated/prisma/enums.js';
 @Controller('tareas')
 export class TareasController {
   constructor(private readonly tareasService: TareasService) {}
+
+  @ApiOperation({
+    summary: 'Obtener las tareas de las materias inscritas (Solo Estudiante)',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Lista de tareas del estudiante obtenida exitosamente.',
+  })
+  @Roles(Rol.ESTUDIANTE)
+  @Get('mis-tareas')
+  async obtenerMisTareas(@GetUser('id') usuarioId: number) {
+    return this.tareasService.obtenerMisTareas(usuarioId);
+  }
 
   @ApiOperation({ summary: 'Crear una nueva tarea (Solo Profesor)' })
   @ApiResponse({ status: 201, description: 'Tarea creada exitosamente.' })
@@ -52,8 +66,11 @@ export class TareasController {
   @ApiResponse({ status: 403, description: 'Acceso prohibido para este rol.' })
   @Roles('ESTUDIANTE')
   @Post('entregar')
-  async entregarTarea(@Body() dto: SubirEntregaDto) {
-    return this.tareasService.entregarTarea(dto);
+  async entregarTarea(
+    @GetUser('id') usuarioId: number,
+    @Body() dto: SubirEntregaDto,
+  ) {
+    return this.tareasService.entregarTarea(dto, usuarioId);
   }
 
   @ApiOperation({

@@ -272,7 +272,6 @@ export class MatriculasService {
   }
 
   async obtenerMisMaterias(usuarioId: number) {
-    // 1. Buscar el perfil del estudiante asociado al usuario
     const estudiante = await this.prisma.perfilEstudiante.findUnique({
       where: { usuarioId },
     });
@@ -281,32 +280,43 @@ export class MatriculasService {
       throw new NotFoundException('Perfil de estudiante no encontrado');
     }
 
-    // 2. Obtener todas las inscripciones activas con sus grupos y materias
-    return this.prisma.inscripcion.findMany({
+    const materiasInscritas = await this.prisma.detalleInscripcion.findMany({
       where: {
-        estudiantePerfilId: estudiante.id,
+        inscripcion: {
+          estudiantePerfilId: estudiante.id,
+          periodo: { activo: true },
+        },
       },
       include: {
+        inscripcion: { include: { periodo: true } },
         grupo: {
           include: {
             materia: true,
             profesor: {
               include: {
                 usuario: {
-                  select: {
-                    nombre: true,
-                    apellido: true,
-                    email: true,
-                  },
+                  select: { nombre: true, apellido: true, email: true },
                 },
               },
             },
             horarios: true,
           },
         },
-        periodo: true,
       },
     });
+
+    return materiasInscritas.map((detalle) => ({
+      detalleInscripcionId: detalle.id,
+      periodo: detalle.inscripcion.periodo,
+      materia: detalle.grupo.materia,
+      grupo: {
+        id: detalle.grupo.id,
+        nombre: detalle.grupo.nombre,
+        cupoMaximo: detalle.grupo.cupoMaximo,
+        horarios: detalle.grupo.horarios,
+        profesor: detalle.grupo.profesor,
+      },
+    }));
   }
   // 1. Obtener toda la oferta de materias en el periodo académico activo
   async obtenerOfertaAcademica() {

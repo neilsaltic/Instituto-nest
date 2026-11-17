@@ -36,9 +36,16 @@ export class TareasService {
     });
   }
 
-  async entregarTarea(dto: SubirEntregaDto) {
+  async entregarTarea(dto: SubirEntregaDto, usuarioId: number) {
+    const estudiante = await this.prisma.perfilEstudiante.findUnique({
+      where: { usuarioId },
+    });
+    if (!estudiante) {
+      throw new NotFoundException('Perfil de estudiante no encontrado');
+    }
+
     const tieneMora = await this.pagoService.verificarMoraEstudiante(
-      dto.estudiantePerfilId,
+      usuarioId,
     );
     if (tieneMora) {
       throw new ForbiddenException(
@@ -63,13 +70,87 @@ export class TareasService {
       );
     }
 
+    const inscripcion = await this.prisma.detalleInscripcion.findFirst({
+      where: {
+        grupoId: tarea.grupoId,
+        inscripcion: {
+          estudiantePerfilId: estudiante.id,
+          periodo: { activo: true },
+        },
+      },
+    });
+    if (!inscripcion) {
+      throw new ForbiddenException(
+        'No puedes entregar tareas de una materia en la que no estás inscrito',
+      );
+    }
+
     return await this.prisma.entregaTarea.create({
       data: {
         tareaId: dto.tareaId,
-        estudiantePerfilId: dto.estudiantePerfilId,
+        estudiantePerfilId: estudiante.id,
         contenidoTexto: dto.contenidoTexto,
         archivoUrl: dto.archivoUrl,
       },
+    });
+  }
+
+  async obtenerMisTareas(usuarioId: number) {
+    const estudiante = await this.prisma.perfilEstudiante.findUnique({
+      where: { usuarioId },
+    });
+    if (!estudiante) {
+      throw new NotFoundException('Perfil de estudiante no encontrado');
+    }
+
+    const inscripciones = await this.prisma.detalleInscripcion.findMany({
+      where: {
+        inscripcion: {
+          estudiantePerfilId: estudiante.id,
+          periodo: { activo: true },
+        },
+      },
+      select: { grupoId: true },
+    });
+    const grupoIds = [...new Set(inscripciones.map((item) => item.grupoId))];
+
+    if (grupoIds.length === 0) {
+      return [];
+    }
+
+    const tareas = await this.prisma.tarea.findMany({
+      where: { grupoId: { in: grupoIds } },
+      include: {
+        grupo: {
+          include: {
+            materia: true,
+            profesor: {
+              include: {
+                usuario: {
+                  select: { nombre: true, apellido: true, email: true },
+                },
+              },
+            },
+          },
+        },
+        entregas: {
+          where: { estudiantePerfilId: estudiante.id },
+          take: 1,
+        },
+      },
+      orderBy: [{ fechaLimite: 'asc' }],
+    });
+
+    const ahora = new Date();
+    return tareas.map((tarea) => {
+      const entrega = tarea.entregas[0] ?? null;
+      return {
+        ...tarea,
+        estadoEntrega: entrega ? 'ENTREGADA' : 'PENDIENTE',
+        estadoPlazo:
+          ahora > tarea.fechaLimite ? 'VENCIDA' : 'PENDIENTE_DE_VENCIMIENTO',
+        entrega,
+      };
     });
   }
 

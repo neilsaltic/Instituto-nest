@@ -4,14 +4,17 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export class SubirEntregaDto {
   @ApiProperty({
-    description: 'ID del perfil del estudiante que realiza la entrega',
+    description:
+      'Campo obsoleto. El estudiante se obtiene del token JWT y no es necesario enviarlo',
     example: 1,
     type: Number,
+    deprecated: true,
+    required: false,
   })
-  @IsNotEmpty({ message: 'El ID del estudiante es obligatorio.' })
+  @IsOptional()
   @IsInt()
   @Type(() => Number)
-  estudiantePerfilId: number;
+  estudiantePerfilId?: number;
 
   @ApiProperty({
     description: 'ID de la tarea a la cual pertenece la entrega',
