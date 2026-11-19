@@ -82,6 +82,76 @@ export class GruposService {
     });
   }
 
+  async obtenerMisGrupos(usuarioId: number) {
+    const profesor = await this.prisma.perfilProfesor.findUnique({
+      where: { usuarioId },
+    });
+    if (!profesor) {
+      throw new NotFoundException('Perfil de profesor no encontrado');
+    }
+
+    return this.prisma.grupo.findMany({
+      where: { profesorId: profesor.id },
+      include: {
+        materia: true,
+        periodo: true,
+        horarios: true,
+        _count: {
+          select: { detallesInscripcion: true, tareas: true },
+        },
+      },
+      orderBy: [{ periodoId: 'desc' }, { nombre: 'asc' }],
+    });
+  }
+
+  async obtenerMisGruposEstudiante(usuarioId: number) {
+    const estudiante = await this.prisma.perfilEstudiante.findUnique({
+      where: { usuarioId },
+    });
+    if (!estudiante) {
+      throw new NotFoundException('Perfil de estudiante no encontrado');
+    }
+
+    const detalles = await this.prisma.detalleInscripcion.findMany({
+      where: {
+        inscripcion: {
+          estudiantePerfilId: estudiante.id,
+          periodo: { activo: true },
+        },
+      },
+      include: {
+        inscripcion: { include: { periodo: true } },
+        grupo: {
+          include: {
+            materia: true,
+            horarios: true,
+            profesor: {
+              include: {
+                usuario: {
+                  select: { nombre: true, apellido: true, email: true },
+                },
+              },
+            },
+          },
+        },
+      },
+      orderBy: [{ inscripcion: { periodo: { fechaInicio: 'desc' } } }],
+    });
+
+    return detalles.map((detalle) => ({
+      detalleInscripcionId: detalle.id,
+      periodo: detalle.inscripcion.periodo,
+      materia: detalle.grupo.materia,
+      grupo: {
+        id: detalle.grupo.id,
+        nombre: detalle.grupo.nombre,
+        cupoMaximo: detalle.grupo.cupoMaximo,
+        horarios: detalle.grupo.horarios,
+        profesor: detalle.grupo.profesor,
+      },
+    }));
+  }
+
   async findOne(id: number) {
     const grupo = await this.prisma.grupo.findUnique({
       where: { id },

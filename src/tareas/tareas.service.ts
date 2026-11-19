@@ -18,12 +18,24 @@ export class TareasService {
     private pagoService: PagosService,
   ) {}
 
-  async crearTarea(dto: CreateTareaDto) {
+  async crearTarea(dto: CreateTareaDto, usuarioId: number) {
+    const profesor = await this.prisma.perfilProfesor.findUnique({
+      where: { usuarioId },
+    });
+    if (!profesor) {
+      throw new NotFoundException('Perfil de profesor no encontrado');
+    }
+
     const grupo = await this.prisma.grupo.findUnique({
       where: { id: dto.grupoId },
     });
     if (!grupo) {
       throw new NotFoundException('El grupo no existe');
+    }
+    if (grupo.profesorId !== profesor.id) {
+      throw new ForbiddenException(
+        'No puedes crear tareas en un grupo que no tienes asignado',
+      );
     }
 
     return await this.prisma.tarea.create({
@@ -154,20 +166,93 @@ export class TareasService {
     });
   }
 
-  async calificarEntrega(entregaId: number, dto: CalificarEntregaDto) {
+  async calificarEntrega(
+    entregaId: number,
+    dto: CalificarEntregaDto,
+    usuarioId: number,
+  ) {
+    const profesor = await this.prisma.perfilProfesor.findUnique({
+      where: { usuarioId },
+    });
+    if (!profesor) {
+      throw new NotFoundException('Perfil de profesor no encontrado');
+    }
+
     const entrega = await this.prisma.entregaTarea.findUnique({
       where: { id: entregaId },
+      include: { tarea: { include: { grupo: true } } },
     });
     if (!entrega) {
       throw new NotFoundException('La tarea Entregada no existe');
     }
+    if (entrega.tarea.grupo.profesorId !== profesor.id) {
+      throw new ForbiddenException(
+        'No puedes calificar entregas de un grupo que no tienes asignado',
+      );
+    }
+
     return await this.prisma.entregaTarea.update({
       where: { id: entregaId },
       data: { calificacion: dto.calificacion },
     });
   }
 
-  async obtenerTareasPorGrupo(grupoId: number) {
+  async obtenerPendientesRevision(usuarioId: number) {
+    const profesor = await this.prisma.perfilProfesor.findUnique({
+      where: { usuarioId },
+    });
+    if (!profesor) {
+      throw new NotFoundException('Perfil de profesor no encontrado');
+    }
+
+    return this.prisma.entregaTarea.findMany({
+      where: {
+        calificacion: null,
+        tarea: { grupo: { profesorId: profesor.id } },
+      },
+      include: {
+        tarea: {
+          include: {
+            grupo: { include: { materia: true, periodo: true } },
+          },
+        },
+        estudiantePerfil: {
+          include: {
+            usuario: {
+              select: { id: true, nombre: true, apellido: true, email: true },
+            },
+          },
+        },
+      },
+      orderBy: { fechaEntrega: 'asc' },
+    });
+  }
+
+  async obtenerTareasPorGrupo(
+    grupoId: number,
+    usuarioId: number,
+    rol: string,
+  ) {
+    if (rol !== 'ADMINISTRADOR') {
+      const profesor = await this.prisma.perfilProfesor.findUnique({
+        where: { usuarioId },
+      });
+      if (!profesor) {
+        throw new NotFoundException('Perfil de profesor no encontrado');
+      }
+      const grupo = await this.prisma.grupo.findUnique({
+        where: { id: grupoId },
+      });
+      if (!grupo) {
+        throw new NotFoundException('El grupo no existe');
+      }
+      if (grupo.profesorId !== profesor.id) {
+        throw new ForbiddenException(
+          'No tienes permiso para ver las tareas de este grupo',
+        );
+      }
+    }
+
     return await this.prisma.tarea.findMany({
       where: { grupoId },
       include: {
@@ -178,13 +263,32 @@ export class TareasService {
       orderBy: { fechaLimite: 'desc' },
     });
   }
-  async obtenerEntregasPorTarea(tareaId: number) {
+  async obtenerEntregasPorTarea(
+    tareaId: number,
+    usuarioId: number,
+    rol: string,
+  ) {
     const tarea = await this.prisma.tarea.findUnique({
       where: { id: tareaId },
+      include: { grupo: true },
     });
 
     if (!tarea) {
       throw new NotFoundException('La tarea no existe.');
+    }
+
+    if (rol !== 'ADMINISTRADOR') {
+      const profesor = await this.prisma.perfilProfesor.findUnique({
+        where: { usuarioId },
+      });
+      if (!profesor) {
+        throw new NotFoundException('Perfil de profesor no encontrado');
+      }
+      if (tarea.grupo.profesorId !== profesor.id) {
+        throw new ForbiddenException(
+          'No tienes permiso para ver las entregas de esta tarea',
+        );
+      }
     }
 
     const entregas = await this.prisma.entregaTarea.findMany({
@@ -201,10 +305,73 @@ export class TareasService {
       orderBy: { fechaEntrega: 'asc' },
     });
 
-    return entregas.map((entrega) => ({
-      ...entrega,
-      estadoCalificacion:
-        entrega.calificacion !== null ? 'CALIFICADA' : 'PENDIENTE',
-    }));
+    const estudiantes = await this.prisma.detalleInscripcion.findMany({
+      where: {
+        grupoId: tarea.grupoId,
+        inscripcion: { periodoId: tarea.grupo.periodoId },
+      },
+      include: {
+        inscripcion: {
+          include: {
+            estudiantePerfil: {
+              include: {
+                usuario: {
+                  select: { id: true, nombre: true, apellido: true, email: true },
+                },
+              },
+            },
+          },
+        },
+      },
+      orderBy: {
+        inscripcion: {
+          estudiantePerfil: { usuario: { apellido: 'asc' } },
+        },
+      },
+    });
+
+    const entregasPorEstudiante = new Map(
+      entregas.map((entrega) => [
+        entrega.estudiantePerfilId,
+        entrega,
+      ]),
+    );
+
+    const resultadoEstudiantes = estudiantes.map((detalle) => {
+      const perfil = detalle.inscripcion.estudiantePerfil;
+      const entrega = entregasPorEstudiante.get(perfil.id) ?? null;
+      let estado = 'NO_ENTREGADA';
+      if (entrega) {
+        estado =
+          entrega.calificacion !== null
+            ? 'CALIFICADA'
+            : 'PENDIENTE_DE_REVISION';
+      }
+      return {
+        estudiantePerfilId: perfil.id,
+        usuario: perfil.usuario,
+        estado,
+        entrega,
+      };
+    });
+
+    return {
+      resumen: {
+        totalEstudiantes: resultadoEstudiantes.length,
+        entregadas: resultadoEstudiantes.filter((e) =>
+          e.estado.startsWith('PENDIENTE') || e.estado === 'CALIFICADA',
+        ).length,
+        noEntregadas: resultadoEstudiantes.filter(
+          (e) => e.estado === 'NO_ENTREGADA',
+        ).length,
+        pendientesRevision: resultadoEstudiantes.filter(
+          (e) => e.estado === 'PENDIENTE_DE_REVISION',
+        ).length,
+        calificadas: resultadoEstudiantes.filter(
+          (e) => e.estado === 'CALIFICADA',
+        ).length,
+      },
+      estudiantes: resultadoEstudiantes,
+    };
   }
 }

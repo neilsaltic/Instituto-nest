@@ -55,8 +55,11 @@ export class TareasController {
   @ApiResponse({ status: 403, description: 'Acceso prohibido para este rol.' })
   @Roles(Rol.PROFESOR)
   @Post()
-  async crearTarea(@Body() dto: CreateTareaDto) {
-    return this.tareasService.crearTarea(dto);
+  async crearTarea(
+    @GetUser('id') usuarioId: number,
+    @Body() dto: CreateTareaDto,
+  ) {
+    return this.tareasService.crearTarea(dto, usuarioId);
   }
 
   @ApiOperation({ summary: 'Subir entrega de una tarea (Solo Estudiante)' })
@@ -93,8 +96,18 @@ export class TareasController {
   async calificarEntrega(
     @Param('id', ParseIntPipe) entregaId: number,
     @Body() dto: CalificarEntregaDto,
+    @GetUser('id') usuarioId: number,
   ) {
-    return this.tareasService.calificarEntrega(entregaId, dto);
+    return this.tareasService.calificarEntrega(entregaId, dto, usuarioId);
+  }
+
+  @ApiOperation({
+    summary: 'Listar entregas pendientes de revisión del profesor',
+  })
+  @Roles(Rol.PROFESOR)
+  @Get('pendientes-revision')
+  async obtenerPendientesRevision(@GetUser('id') usuarioId: number) {
+    return this.tareasService.obtenerPendientesRevision(usuarioId);
   }
 
   @ApiOperation({
@@ -109,8 +122,15 @@ export class TareasController {
   @ApiResponse({ status: 403, description: 'Acceso prohibido para este rol.' })
   @Roles('PROFESOR', 'ADMINISTRADOR')
   @Get('grupo/:grupoId')
-  async obtenerTareasPorGrupo(@Param('grupoId', ParseIntPipe) grupoId: number) {
-    return this.tareasService.obtenerTareasPorGrupo(grupoId);
+  async obtenerTareasPorGrupo(
+    @Param('grupoId', ParseIntPipe) grupoId: number,
+    @GetUser() usuario: any,
+  ) {
+    return this.tareasService.obtenerTareasPorGrupo(
+      grupoId,
+      usuario.id,
+      usuario.rol,
+    );
   }
 
   @ApiOperation({
@@ -128,7 +148,12 @@ export class TareasController {
   @Get(':tareaId/entregas')
   async obtenerEntregasPorTarea(
     @Param('tareaId', ParseIntPipe) tareaId: number,
+    @GetUser() usuario: any,
   ) {
-    return this.tareasService.obtenerEntregasPorTarea(tareaId);
+    return this.tareasService.obtenerEntregasPorTarea(
+      tareaId,
+      usuario.id,
+      usuario.rol,
+    );
   }
 }

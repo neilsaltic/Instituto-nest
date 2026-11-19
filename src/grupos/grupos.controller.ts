@@ -23,6 +23,7 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard.js';
 import { RolesGuard } from '../auth/guards/roles.guard.js';
 import { Roles } from '../auth/decorators/roles.decorators.js';
 import { Rol } from '../generated/prisma/enums.js';
+import { GetUser } from '../auth/decorators/get-user.decorator.js';
 
 @ApiTags('Grupos y Horarios')
 @ApiBearerAuth('JWT-auth')
@@ -30,6 +31,24 @@ import { Rol } from '../generated/prisma/enums.js';
 @Controller('grupos')
 export class GruposController {
   constructor(private readonly gruposService: GruposService) {}
+
+  @Get('mis-grupos')
+  @Roles(Rol.PROFESOR)
+  @ApiOperation({
+    summary: 'Obtener los grupos asignados al profesor autenticado',
+  })
+  obtenerMisGrupos(@GetUser('id') usuarioId: number) {
+    return this.gruposService.obtenerMisGrupos(usuarioId);
+  }
+
+  @Get('mis-grupos/estudiante')
+  @Roles(Rol.ESTUDIANTE)
+  @ApiOperation({
+    summary: 'Obtener los grupos en los que está inscrito el estudiante autenticado',
+  })
+  obtenerMisGruposEstudiante(@GetUser('id') usuarioId: number) {
+    return this.gruposService.obtenerMisGruposEstudiante(usuarioId);
+  }
 
   @Post()
   @Roles(Rol.ADMINISTRADOR)
