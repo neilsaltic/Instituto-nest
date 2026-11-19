@@ -8,6 +8,7 @@ import {
   Delete,
   Req,
   ParseIntPipe,
+  Query,
   UseGuards,
 } from '@nestjs/common';
 import { TareasService } from './tareas.service.js';
@@ -22,6 +23,7 @@ import {
   ApiBearerAuth,
   ApiOperation,
   ApiParam,
+  ApiQuery,
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
@@ -130,6 +132,36 @@ export class TareasController {
       grupoId,
       usuario.id,
       usuario.rol,
+    );
+  }
+
+  @ApiOperation({
+    summary: 'Obtener el padrón del grupo y el estado de entrega de una tarea',
+  })
+  @ApiParam({ name: 'grupoId', description: 'ID del grupo', type: Number })
+  @ApiQuery({
+    name: 'tareaId',
+    description: 'ID de la tarea del grupo que se desea consultar',
+    type: Number,
+    required: true,
+  })
+  @ApiResponse({
+    status: 200,
+    description:
+      'Incluye a todos los estudiantes inscritos, también a quienes no entregaron la tarea.',
+  })
+  @Roles('PROFESOR', 'ADMINISTRADOR')
+  @Get('grupo/:grupoId/estudiantes')
+  async obtenerPadronEstudiantesPorGrupo(
+    @Param('grupoId', ParseIntPipe) grupoId: number,
+    @Query('tareaId', ParseIntPipe) tareaId: number,
+    @GetUser() usuario: any,
+  ) {
+    return this.tareasService.obtenerEntregasPorTarea(
+      tareaId,
+      usuario.id,
+      usuario.rol,
+      grupoId,
     );
   }
 

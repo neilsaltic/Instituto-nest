@@ -267,9 +267,13 @@ export class TareasService {
     tareaId: number,
     usuarioId: number,
     rol: string,
+    grupoId?: number,
   ) {
-    const tarea = await this.prisma.tarea.findUnique({
-      where: { id: tareaId },
+    const tarea = await this.prisma.tarea.findFirst({
+      where: {
+        id: tareaId,
+        ...(grupoId !== undefined && { grupoId }),
+      },
       include: { grupo: true },
     });
 
