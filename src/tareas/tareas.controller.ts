@@ -10,6 +10,10 @@ import {
   ParseIntPipe,
   Query,
   UseGuards,
+  UseInterceptors,
+  UploadedFile,
+  ParseFilePipe,
+  MaxFileSizeValidator,
 } from '@nestjs/common';
 import { TareasService } from './tareas.service.js';
 import { CreateTareaDto } from './dto/create-tarea.dto.js';
@@ -21,6 +25,8 @@ import { RolesGuard } from '../auth/guards/roles.guard.js';
 import { Roles } from '../auth/decorators/roles.decorators.js';
 import {
   ApiBearerAuth,
+  ApiBody,
+  ApiConsumes,
   ApiOperation,
   ApiParam,
   ApiQuery,
@@ -29,6 +35,10 @@ import {
 } from '@nestjs/swagger';
 import { Rol } from '../generated/prisma/enums.js';
 import { GetUser } from '../auth/decorators/get-user.decorator.js';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { TareaDocumentValidator } from './validators/tarea-document.validator.js';
+
+const MAX_DELIVERY_FILE_SIZE = 10 * 1024 * 1024;
 
 @ApiTags('Tareas')
 @ApiBearerAuth('JWT-auth')
@@ -65,17 +75,51 @@ export class TareasController {
   }
 
   @ApiOperation({ summary: 'Subir entrega de una tarea (Solo Estudiante)' })
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      required: ['tareaId'],
+      properties: {
+        tareaId: { type: 'integer', example: 5 },
+        contenidoTexto: {
+          type: 'string',
+          example: 'Adjunto mi tarea resuelta',
+        },
+        archivo: {
+          type: 'string',
+          format: 'binary',
+          description: 'Archivo PDF, Word (.doc/.docx) o TXT (máximo 10 MB)',
+        },
+      },
+    },
+  })
   @ApiResponse({ status: 201, description: 'Entrega registrada exitosamente.' })
   @ApiResponse({ status: 400, description: 'Datos de entrega inválidos.' })
   @ApiResponse({ status: 401, description: 'No autorizado.' })
   @ApiResponse({ status: 403, description: 'Acceso prohibido para este rol.' })
   @Roles('ESTUDIANTE')
   @Post('entregar')
+  @UseInterceptors(
+    FileInterceptor('archivo', {
+      limits: { fileSize: MAX_DELIVERY_FILE_SIZE, files: 1 },
+    }),
+  )
   async entregarTarea(
     @GetUser('id') usuarioId: number,
     @Body() dto: SubirEntregaDto,
+    @UploadedFile(
+      new ParseFilePipe({
+        validators: [
+          new MaxFileSizeValidator({ maxSize: MAX_DELIVERY_FILE_SIZE }),
+          new TareaDocumentValidator(),
+        ],
+        fileIsRequired: false, // Permite entregas que sean solo texto sin archivo adjunto
+      }),
+    )
+    archivo?: Express.Multer.File,
   ) {
-    return this.tareasService.entregarTarea(dto, usuarioId);
+    return this.tareasService.entregarTarea(dto, usuarioId, archivo);
   }
 
   @ApiOperation({

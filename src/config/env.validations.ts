@@ -16,4 +16,7 @@ export const envValidationSchema = Joi.object({
   MIN_PASSING_GRADE: Joi.number().min(0).max(100).default(51),
   MAX_STUDENTS_PER_GROUP: Joi.number().integer().positive().default(30),
   MOCKPAY_SECRET_KEY: Joi.string().required(),
+  CLOUDINARY_CLOUD_NAME: Joi.string().required(),
+  CLOUDINARY_API_KEY: Joi.string().required(),
+  CLOUDINARY_API_SECRET: Joi.string().required(),
 });

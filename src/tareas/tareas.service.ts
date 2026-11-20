@@ -10,12 +10,14 @@ import { PrismaService } from '../prisma/prisma.service.js';
 import { PagosService } from '../pagos/pagos.service.js';
 import { SubirEntregaDto } from './dto/subir-entrega.dto.js';
 import { CalificarEntregaDto } from './dto/calificar-entrega.dto.js';
-
+import { CloudinaryService } from '../cloudinary/cloudinary.service.js';
+import 'multer';
 @Injectable()
 export class TareasService {
   constructor(
     private prisma: PrismaService,
     private pagoService: PagosService,
+    private cloudinaryService: CloudinaryService, // <--- Inyectamos Cloudinary
   ) {}
 
   async crearTarea(dto: CreateTareaDto, usuarioId: number) {
@@ -48,7 +50,11 @@ export class TareasService {
     });
   }
 
-  async entregarTarea(dto: SubirEntregaDto, usuarioId: number) {
+  async entregarTarea(
+    dto: SubirEntregaDto,
+    usuarioId: number,
+    file?: Express.Multer.File, // <--- Recibimos el archivo físico
+  ) {
     const estudiante = await this.prisma.perfilEstudiante.findUnique({
       where: { usuarioId },
     });
@@ -56,18 +62,16 @@ export class TareasService {
       throw new NotFoundException('Perfil de estudiante no encontrado');
     }
 
-    const tieneMora = await this.pagoService.verificarMoraEstudiante(
-      usuarioId,
-    );
+    const tieneMora = await this.pagoService.verificarMoraEstudiante(usuarioId);
     if (tieneMora) {
       throw new ForbiddenException(
         'Acceso denegado: El estudiante tiene deudas pendientes',
       );
     }
+
     const tarea = await this.prisma.tarea.findUnique({
       where: { id: dto.tareaId },
     });
-
     if (!tarea) {
       throw new NotFoundException('La tarea no existe');
     }
@@ -76,9 +80,11 @@ export class TareasService {
         'El plazo limite de la fecha de entrega ya vencio',
       );
     }
-    if (!dto.archivoUrl && !dto.contenidoTexto) {
+
+    // Validamos que envíe al menos un archivo físico, una URL manual o texto
+    if (!file && !dto.archivoUrl && !dto.contenidoTexto) {
       throw new BadRequestException(
-        'debes incluir un texto o un Url de archivo',
+        'Debes incluir un archivo, un texto o una URL de archivo',
       );
     }
 
@@ -97,12 +103,19 @@ export class TareasService {
       );
     }
 
+    // Si el estudiante adjuntó un archivo físico, lo subimos a Cloudinary
+    let urlFinalArchivo = dto.archivoUrl;
+    if (file) {
+      const uploadResult = await this.cloudinaryService.uploadFile(file);
+      urlFinalArchivo = uploadResult.secure_url;
+    }
+
     return await this.prisma.entregaTarea.create({
       data: {
         tareaId: dto.tareaId,
         estudiantePerfilId: estudiante.id,
         contenidoTexto: dto.contenidoTexto,
-        archivoUrl: dto.archivoUrl,
+        archivoUrl: urlFinalArchivo,
       },
     });
   }
@@ -228,11 +241,7 @@ export class TareasService {
     });
   }
 
-  async obtenerTareasPorGrupo(
-    grupoId: number,
-    usuarioId: number,
-    rol: string,
-  ) {
+  async obtenerTareasPorGrupo(grupoId: number, usuarioId: number, rol: string) {
     if (rol !== 'ADMINISTRADOR') {
       const profesor = await this.prisma.perfilProfesor.findUnique({
         where: { usuarioId },
@@ -320,7 +329,12 @@ export class TareasService {
             estudiantePerfil: {
               include: {
                 usuario: {
-                  select: { id: true, nombre: true, apellido: true, email: true },
+                  select: {
+                    id: true,
+                    nombre: true,
+                    apellido: true,
+                    email: true,
+                  },
                 },
               },
             },
@@ -335,10 +349,7 @@ export class TareasService {
     });
 
     const entregasPorEstudiante = new Map(
-      entregas.map((entrega) => [
-        entrega.estudiantePerfilId,
-        entrega,
-      ]),
+      entregas.map((entrega) => [entrega.estudiantePerfilId, entrega]),
     );
 
     const resultadoEstudiantes = estudiantes.map((detalle) => {
@@ -362,8 +373,8 @@ export class TareasService {
     return {
       resumen: {
         totalEstudiantes: resultadoEstudiantes.length,
-        entregadas: resultadoEstudiantes.filter((e) =>
-          e.estado.startsWith('PENDIENTE') || e.estado === 'CALIFICADA',
+        entregadas: resultadoEstudiantes.filter(
+          (e) => e.estado.startsWith('PENDIENTE') || e.estado === 'CALIFICADA',
         ).length,
         noEntregadas: resultadoEstudiantes.filter(
           (e) => e.estado === 'NO_ENTREGADA',
